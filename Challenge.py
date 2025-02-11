@@ -4,72 +4,72 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-data_store = {}  # Store receipts in memory
+receipt_storage = {}
 
-def calculate_points(receipt):
-    points = 0
+def compute_points(receipt_data):
+    total_points = 0
     
-    # Rule 1: One point for every alphanumeric character in retailer name
-    points += sum(c.isalnum() for c in receipt.get("retailer", ""))
+    # Rule 1: Add points based on alphanumeric characters in the retailer name
+    total_points += sum(c.isalnum() for c in receipt_data.get("retailer", ""))
     
-    # Rule 2: 50 points if total is a round dollar amount with no cents
+    # Rule 2: Add 50 points for round dollar amounts (no cents)
     try:
-        total = float(receipt.get("total", 0))
-        if total.is_integer():
-            points += 50
+        total_amount = float(receipt_data.get("total", 0))
+        if total_amount.is_integer():
+            total_points += 50
         
-        # Rule 3: 25 points if total is a multiple of 0.25
-        if total % 0.25 == 0:
-            points += 25
+        # Rule 3: Add 25 points if total is divisible by 0.25
+        if total_amount % 0.25 == 0:
+            total_points += 25
     except ValueError:
         return 0
     
-    # Rule 4: 5 points for every two items on the receipt
-    items = receipt.get("items", [])
-    points += (len(items) // 2) * 5
+    # Rule 4: Add 5 points for every two items
+    item_list = receipt_data.get("items", [])
+    total_points += (len(item_list) // 2) * 5
     
-    # Rule 5: Points based on item descriptions (trimmed length * price)
-    for item in items:
+    # Rule 5: Add points based on item description length and price
+    for item in item_list:
         try:
-            trimmed_length = len(item.get("shortDescription", "").strip())
-            price = float(item.get("price", 0))
-            if trimmed_length % 3 == 0:
-                points += int(price * 0.2)
+            description_length = len(item.get("shortDescription", "").strip())
+            item_price = float(item.get("price", 0))
+            if description_length % 3 == 0:
+                total_points += int(item_price * 0.2)
         except ValueError:
             continue
     
-    # Rule 6: 6 points if the day in purchase date is odd
+    # Rule 6: Add 6 points if the purchase day is odd
     try:
-        purchase_date = datetime.strptime(receipt.get("purchaseDate", ""), "%Y-%m-%d")
-        if purchase_date.day % 2 == 1:
-            points += 6
+        purchase_date = datetime.strptime(receipt_data.get("purchaseDate", ""), "%Y-%m-%d")
+        if purchase_date.day % 2 != 0:
+            total_points += 6
     except ValueError:
         return 0
     
-    # Rule 7: 10 points if purchase time is between 2:00 PM and 4:00 PM
+    # Rule 7: Add 10 points if purchase time is between 2:00 PM and 4:00 PM
     try:
-        purchase_time = datetime.strptime(receipt.get("purchaseTime", ""), "%H:%M").time()
+        purchase_time = datetime.strptime(receipt_data.get("purchaseTime", ""), "%H:%M").time()
         if datetime.strptime("14:00", "%H:%M").time() <= purchase_time <= datetime.strptime("16:00", "%H:%M").time():
-            points += 10
+            total_points += 10
     except ValueError:
         return 0
     
-    return points
+    return total_points
 
 @app.route("/receipts/process", methods=["POST"])
-def process_receipt():
-    receipt = request.get_json()
-    if not receipt:
-        return jsonify({"error": "Invalid JSON"}), 400
+def process_receipt_data():
+    receipt_data = request.get_json()
+    if not receipt_data:
+        return jsonify({"error": "Invalid JSON format"}), 400
     receipt_id = str(uuid.uuid4())
-    data_store[receipt_id] = calculate_points(receipt)
+    receipt_storage[receipt_id] = compute_points(receipt_data)
     return jsonify({"id": receipt_id}), 200
 
 @app.route("/receipts/<receipt_id>/points", methods=["GET"])
-def get_points(receipt_id):
-    if receipt_id in data_store:
-        return jsonify({"points": data_store[receipt_id]}), 200
-    return jsonify({"error": "Receipt not found"}), 404
+def fetch_receipt_points(receipt_id):
+    if receipt_id in receipt_storage:
+        return jsonify({"points": receipt_storage[receipt_id]}), 200
+    return jsonify({"error": "Receipt ID not found"}), 404
 
 if __name__ == "__main__":
     app.run(debug=True)
