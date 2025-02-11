@@ -45,6 +45,4 @@ This is a Flask-based API that processes receipts and calculates points based on
   {"points": 100}
   ```
 
-## License
-This project is licensed under the MIT License.
 
